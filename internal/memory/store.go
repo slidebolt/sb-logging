@@ -1,41 +1,43 @@
-package logging
+package memory
 
 import (
 	"context"
 	"sort"
 	"strings"
 	"sync"
+
+	logging "github.com/slidebolt/sb-logging"
 )
 
-type memoryRecord struct {
+type record struct {
 	seq   int
-	event Event
+	event logging.Event
 }
 
-type MemoryStore struct {
+type Store struct {
 	mu      sync.RWMutex
 	nextSeq int
-	records []memoryRecord
-	byID    map[string]Event
+	records []record
+	byID    map[string]logging.Event
 }
 
-func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{byID: map[string]Event{}}
+func New() *Store {
+	return &Store{byID: map[string]logging.Event{}}
 }
 
-func (s *MemoryStore) Append(_ context.Context, event Event) error {
+func (s *Store) Append(_ context.Context, event logging.Event) error {
 	event.Normalize()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.nextSeq++
-	s.records = append(s.records, memoryRecord{seq: s.nextSeq, event: cloneEvent(event)})
+	s.records = append(s.records, record{seq: s.nextSeq, event: cloneEvent(event)})
 	s.byID[event.ID] = cloneEvent(event)
 	return nil
 }
 
-func (s *MemoryStore) Get(_ context.Context, id string) (Event, error) {
+func (s *Store) Get(_ context.Context, id string) (logging.Event, error) {
 	id = strings.TrimSpace(id)
 
 	s.mu.RLock()
@@ -43,20 +45,20 @@ func (s *MemoryStore) Get(_ context.Context, id string) (Event, error) {
 
 	event, ok := s.byID[id]
 	if !ok {
-		return Event{}, ErrNotFound
+		return logging.Event{}, logging.ErrNotFound
 	}
 	return cloneEvent(event), nil
 }
 
-func (s *MemoryStore) List(_ context.Context, req ListRequest) ([]Event, error) {
+func (s *Store) List(_ context.Context, req logging.ListRequest) ([]logging.Event, error) {
 	req.Normalize()
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]memoryRecord, 0, len(s.records))
+	out := make([]record, 0, len(s.records))
 	for _, rec := range s.records {
-		if matchesEvent(rec.event, req) {
+		if matches(rec.event, req) {
 			out = append(out, rec)
 		}
 	}
@@ -72,14 +74,14 @@ func (s *MemoryStore) List(_ context.Context, req ListRequest) ([]Event, error) 
 		out = out[:req.Limit]
 	}
 
-	events := make([]Event, 0, len(out))
+	events := make([]logging.Event, 0, len(out))
 	for _, rec := range out {
 		events = append(events, cloneEvent(rec.event))
 	}
 	return events, nil
 }
 
-func matchesEvent(event Event, req ListRequest) bool {
+func matches(event logging.Event, req logging.ListRequest) bool {
 	if !req.Since.IsZero() && event.TS.Before(req.Since) {
 		return false
 	}
@@ -110,7 +112,7 @@ func matchesEvent(event Event, req ListRequest) bool {
 	return true
 }
 
-func cloneEvent(event Event) Event {
+func cloneEvent(event logging.Event) logging.Event {
 	cloned := event
 	if event.Data != nil {
 		cloned.Data = make(map[string]any, len(event.Data))

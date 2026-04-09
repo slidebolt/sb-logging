@@ -7,15 +7,16 @@ import (
 	"time"
 
 	logging "github.com/slidebolt/sb-logging"
+	"github.com/slidebolt/sb-logging/server"
 )
 
 func newMemoryStore(t *testing.T) logging.Store {
 	t.Helper()
-	store, err := logging.Open(logging.Config{Target: "memory"})
+	svc, err := server.New(logging.Config{Target: "memory"})
 	if err != nil {
 		t.Fatalf("Open(memory): %v", err)
 	}
-	return store
+	return svc.Store()
 }
 
 func TestMemoryStoreAppendGetAndList(t *testing.T) {

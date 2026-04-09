@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	logging "github.com/slidebolt/sb-logging"
+	"github.com/slidebolt/sb-logging/server"
 )
 
 func TestDefaultConfigUsesMemoryWhenUnset(t *testing.T) {
@@ -25,17 +26,17 @@ func TestDefaultConfigReadsEnv(t *testing.T) {
 
 func TestOpenFromEnvUsesMemory(t *testing.T) {
 	t.Setenv("SB_LOGGING_TARGET", "memory")
-	store, err := logging.OpenFromEnv()
+	svc, err := server.NewFromEnv()
 	if err != nil {
 		t.Fatalf("OpenFromEnv: %v", err)
 	}
-	if store == nil {
+	if svc == nil || svc.Store() == nil {
 		t.Fatal("OpenFromEnv returned nil store")
 	}
 }
 
 func TestOpenRejectsUnknownTarget(t *testing.T) {
-	_, err := logging.Open(logging.Config{Target: "postgres"})
+	_, err := server.New(logging.Config{Target: "postgres"})
 	if err == nil {
 		t.Fatal("expected error for unknown target")
 	}
