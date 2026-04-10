@@ -3,10 +3,10 @@ module github.com/slidebolt/sb-logging
 go 1.26.1
 
 require (
-	github.com/slidebolt/sb-contract v1.0.4
-	github.com/slidebolt/sb-logging-sdk v1.0.0
-	github.com/slidebolt/sb-messenger-sdk v1.0.4
-	github.com/slidebolt/sb-runtime v1.0.4
+	github.com/slidebolt/sb-contract v1.0.5
+	github.com/slidebolt/sb-logging-sdk v1.0.1
+	github.com/slidebolt/sb-messenger-sdk v1.0.6
+	github.com/slidebolt/sb-runtime v1.0.5
 	modernc.org/sqlite v1.48.2
 )
 
