@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	logging "github.com/slidebolt/sb-logging"
+	logcfg "github.com/slidebolt/sb-logging"
+	logging "github.com/slidebolt/sb-logging-sdk"
 )
 
 func TestNewMemoryServiceProvidesStore(t *testing.T) {
-	svc, err := New(logging.Config{Target: "memory"})
+	svc, err := New(logcfg.Config{Target: "memory"})
 	if err != nil {
 		t.Fatalf("New(memory): %v", err)
 	}
@@ -18,8 +19,23 @@ func TestNewMemoryServiceProvidesStore(t *testing.T) {
 	}
 }
 
+func TestNewSQLiteServiceProvidesStore(t *testing.T) {
+	svc, err := New(logcfg.Config{Target: "sqlite", SQLitePath: t.TempDir() + "/logs.db"})
+	if err != nil {
+		t.Fatalf("New(sqlite): %v", err)
+	}
+	t.Cleanup(func() {
+		if err := svc.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	})
+	if svc.Store() == nil {
+		t.Fatal("Store returned nil")
+	}
+}
+
 func TestServiceStoreAppendAndList(t *testing.T) {
-	svc, err := New(logging.Config{Target: "memory"})
+	svc, err := New(logcfg.Config{Target: "memory"})
 	if err != nil {
 		t.Fatalf("New(memory): %v", err)
 	}

@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	logging "github.com/slidebolt/sb-logging"
+	logging "github.com/slidebolt/sb-logging-sdk"
+	"github.com/slidebolt/sb-logging/internal/storeutil"
 )
 
 type record struct {
@@ -15,14 +16,21 @@ type record struct {
 }
 
 type Store struct {
-	mu      sync.RWMutex
-	nextSeq int
-	records []record
-	byID    map[string]logging.Event
+	maxEvents int
+	mu        sync.RWMutex
+	nextSeq   int
+	records   []record
+	byID      map[string]logging.Event
 }
 
-func New() *Store {
-	return &Store{byID: map[string]logging.Event{}}
+func New(maxEvents int) *Store {
+	if maxEvents <= 0 {
+		maxEvents = 1000
+	}
+	return &Store{
+		maxEvents: maxEvents,
+		byID:      map[string]logging.Event{},
+	}
 }
 
 func (s *Store) Append(_ context.Context, event logging.Event) error {
@@ -32,8 +40,9 @@ func (s *Store) Append(_ context.Context, event logging.Event) error {
 	defer s.mu.Unlock()
 
 	s.nextSeq++
-	s.records = append(s.records, record{seq: s.nextSeq, event: cloneEvent(event)})
-	s.byID[event.ID] = cloneEvent(event)
+	s.records = append(s.records, record{seq: s.nextSeq, event: storeutil.CloneEvent(event)})
+	s.byID[event.ID] = storeutil.CloneEvent(event)
+	s.pruneLocked()
 	return nil
 }
 
@@ -47,7 +56,7 @@ func (s *Store) Get(_ context.Context, id string) (logging.Event, error) {
 	if !ok {
 		return logging.Event{}, logging.ErrNotFound
 	}
-	return cloneEvent(event), nil
+	return storeutil.CloneEvent(event), nil
 }
 
 func (s *Store) List(_ context.Context, req logging.ListRequest) ([]logging.Event, error) {
@@ -58,7 +67,7 @@ func (s *Store) List(_ context.Context, req logging.ListRequest) ([]logging.Even
 
 	out := make([]record, 0, len(s.records))
 	for _, rec := range s.records {
-		if matches(rec.event, req) {
+		if storeutil.Matches(rec.event, req) {
 			out = append(out, rec)
 		}
 	}
@@ -76,49 +85,20 @@ func (s *Store) List(_ context.Context, req logging.ListRequest) ([]logging.Even
 
 	events := make([]logging.Event, 0, len(out))
 	for _, rec := range out {
-		events = append(events, cloneEvent(rec.event))
+		events = append(events, storeutil.CloneEvent(rec.event))
 	}
 	return events, nil
 }
 
-func matches(event logging.Event, req logging.ListRequest) bool {
-	if !req.Since.IsZero() && event.TS.Before(req.Since) {
-		return false
+func (s *Store) pruneLocked() {
+	if s.maxEvents <= 0 || len(s.records) <= s.maxEvents {
+		return
 	}
-	if !req.Until.IsZero() && event.TS.After(req.Until) {
-		return false
+	drop := len(s.records) - s.maxEvents
+	for _, rec := range s.records[:drop] {
+		delete(s.byID, rec.event.ID)
 	}
-	if req.Source != "" && event.Source != req.Source {
-		return false
-	}
-	if req.Kind != "" && event.Kind != req.Kind {
-		return false
-	}
-	if req.Level != "" && event.Level != req.Level {
-		return false
-	}
-	if req.Plugin != "" && event.Plugin != req.Plugin {
-		return false
-	}
-	if req.Device != "" && event.Device != req.Device {
-		return false
-	}
-	if req.Entity != "" && event.Entity != req.Entity {
-		return false
-	}
-	if req.TraceID != "" && event.TraceID != req.TraceID {
-		return false
-	}
-	return true
-}
-
-func cloneEvent(event logging.Event) logging.Event {
-	cloned := event
-	if event.Data != nil {
-		cloned.Data = make(map[string]any, len(event.Data))
-		for k, v := range event.Data {
-			cloned.Data[k] = v
-		}
-	}
-	return cloned
+	remaining := make([]record, len(s.records[drop:]))
+	copy(remaining, s.records[drop:])
+	s.records = remaining
 }
