@@ -34,3 +34,6 @@ dist/
 build/
 bin/
 !.env.example
+
+# Built binary
+/sb-logging
