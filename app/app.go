@@ -7,8 +7,8 @@ import (
 
 	contract "github.com/slidebolt/sb-contract"
 	logcfg "github.com/slidebolt/sb-logging"
-	messenger "github.com/slidebolt/sb-messenger-sdk"
 	"github.com/slidebolt/sb-logging/server"
+	messenger "github.com/slidebolt/sb-messenger-sdk"
 )
 
 const ServiceID = "sb-logging"
@@ -28,6 +28,7 @@ func (a *App) Hello() contract.HelloResponse {
 		Kind:            contract.KindService,
 		ContractVersion: contract.ContractVersion,
 		DependsOn:       []string{"messenger"},
+		Setup:           contract.RequiredSetup("Core"),
 	}
 }
 
